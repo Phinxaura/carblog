@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { getPosts, getUser, getCars, Post, User, Car, generateCarTitle, getCarBrands, categorizeCarsByType, searchCars, filterCarsByAvailability, debounce, getCarImage } from '@/lib/api';
 import CarPostCard from '@/components/CarPostCard';
 import LoadingSpinner from '@/components/LoadingSpinner';
@@ -8,6 +8,7 @@ import ErrorMessage from '@/components/ErrorMessage';
 import EmptyState from '@/components/EmptyState';
 import { Button } from '@/components/ui/Button';
 import Image from 'next/image';
+import { Search } from 'lucide-react';
 
 export default function BlogsPage() {
   const [posts, setPosts] = useState<Post[]>([]);
@@ -22,6 +23,7 @@ export default function BlogsPage() {
   const [selectedBrand, setSelectedBrand] = useState('All');
   const [showAvailableOnly, setShowAvailableOnly] = useState(false);
   const [displayedPosts, setDisplayedPosts] = useState(20);
+  const postsSectionRef = useRef<HTMLDivElement>(null);
 
   const categories = ['All', 'Electric', 'SUV', 'Luxury', 'Sports', 'Hybrid', 'Sedan', 'Truck'];
 
@@ -41,12 +43,23 @@ export default function BlogsPage() {
     fetchData();
   }, []);
 
+  const handleSearch = () => {
+    if (postsSectionRef.current) {
+      postsSectionRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter') {
+      handleSearch();
+    }
+  };
+
   const fetchData = async () => {
     try {
       setLoading(true);
       setError(null);
 
-      // Fetch all data in parallel
       const [postsData, carsData, brandsData] = await Promise.all([
         getPosts(),
         getCars(),
@@ -62,7 +75,6 @@ export default function BlogsPage() {
       setCars(carsData);
       setBrands(['All', ...brandsData]);
 
-      // Fetch users for each post
       const userPromises = postsData.slice(0, 20).map(post => getUser(post.userId));
       const usersData = await Promise.all(userPromises);
 
@@ -82,21 +94,17 @@ export default function BlogsPage() {
   };
 
   const getCarForPost = (post: Post): Car | undefined => {
-    // Try to match post with a car by ID, or get a car based on post index
     return cars.find(car => car.id === post.id) || cars[post.id % cars.length];
   };
 
-  // Categorized cars for filtering
   const categorizedCars = useMemo(() => categorizeCarsByType(cars), [cars]);
 
-  // Create a mapping of posts to their categories based on associated cars
   const postsWithCategories = useMemo(() => {
     return posts.map(post => {
       const car = getCarForPost(post);
       let postCategories: string[] = ['All'];
       
       if (car) {
-        // Check which categories this car belongs to
         Object.entries(categorizedCars).forEach(([category, categoryCars]) => {
           if (categoryCars.some(categoryCar => categoryCar.id === car.id)) {
             postCategories.push(category);
@@ -115,7 +123,6 @@ export default function BlogsPage() {
   const filteredPosts = useMemo(() => {
     let filtered = postsWithCategories;
 
-    // Filter by search term
     if (debouncedSearchTerm) {
       filtered = filtered.filter(post => {
         const title = generateCarTitle(post, post.car);
@@ -125,19 +132,16 @@ export default function BlogsPage() {
       });
     }
 
-    // Filter by category
     if (selectedCategory !== 'All') {
       filtered = filtered.filter(post => post.categories.includes(selectedCategory));
     }
 
-    // Filter by brand
     if (selectedBrand !== 'All') {
       filtered = filtered.filter(post => {
         return post.car && post.car.car === selectedBrand;
       });
     }
 
-    // Filter by availability
     if (showAvailableOnly) {
       filtered = filtered.filter(post => {
         return post.car && post.car.availability;
@@ -147,7 +151,6 @@ export default function BlogsPage() {
     return filtered;
   }, [postsWithCategories, debouncedSearchTerm, selectedCategory, selectedBrand, showAvailableOnly]);
 
-  // Count posts for each category
   const categoryPostCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     categories.forEach(category => {
@@ -162,7 +165,6 @@ export default function BlogsPage() {
     return counts;
   }, [postsWithCategories, categories]);
 
-  // Count posts for each brand
   const brandPostCounts = useMemo(() => {
     const counts: Record<string, number> = {};
     brands.forEach(brand => {
@@ -184,7 +186,6 @@ export default function BlogsPage() {
   if (loading) {
     return (
       <div>
-        {/* Hero Section Skeleton */}
         <section className="bg-[#232536] text-white py-8 md:py-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
@@ -213,7 +214,6 @@ export default function BlogsPage() {
   if (error) {
     return (
       <div>
-        {/* Hero Section */}
         <section className="bg-[#232536] text-white py-8 md:py-16">
           <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
@@ -248,7 +248,6 @@ export default function BlogsPage() {
 
   return (
     <div>
-      {/* Hero Section with Overlapping Images - Fixed to fit within viewport */}
       <section className="bg-[#31323C] text-white relative py-8 md:py-16 overflow-hidden">
         <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-20">
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 lg:gap-12 items-center">
@@ -266,74 +265,69 @@ export default function BlogsPage() {
               </Button>
             </div>
 
-            {/* Overlapping Images Grid - Constrained within container */}
-           <div className="relative h-[250px] sm:h-[300px] md:h-[350px] lg:h-[400px] w-full order-1 lg:order-2 max-w-[500px] mx-auto lg:mx--2">
-
-  {/* Group Wrapper for All 4 Images */}
-  <div className="absolute top-0 left-1/2 -translate-x-1/2 lg:left-0 lg:translate-x-0 w-[250px] sm:w-[300px] md:w-[400px] lg:w-auto h-full">
-    
-    {/* First Image */}
-    <div className="absolute top-0 left-0 w-[80px] sm:w-[100px] md:w-[140px] lg:w-[190px] h-[120px] sm:h-[150px] md:h-[210px] lg:h-[380px] z-10">
-      <Image
-        src="https://images.unsplash.com/photo-1544636331-e26879cd4d9b?w=600&h=400&fit=crop"
-        alt="Muscle Car"
-        fill
-        className="object-cover shadow-xl"
-      />
-    </div>
-
-    {/* Second Image */}
-    <div className="absolute top-[20px] sm:top-[30px] md:top-[40px] lg:top-[50px] left-[60px] sm:left-[80px] md:left-[110px] lg:left-[140px] w-[80px] sm:w-[100px] md:w-[140px] lg:w-[190px] h-[120px] sm:h-[150px] md:h-[210px] lg:h-[380px] z-20">
-      <Image
-        src="https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=400&h=300&fit=crop"
-        alt="Yellow Sports Car"
-        fill
-        className="object-cover shadow-2xl"
-      />
-    </div>
-
-    {/* Third Image */}
-    <div className="absolute top-0 left-[120px] sm:left-[150px] md:left-[210px] lg:left-[270px] w-[70px] sm:w-[90px] md:w-[120px] lg:w-[190px] h-[120px] sm:h-[150px] md:h-[210px] lg:h-[380px] z-30">
-      <Image
-        src="https://images.unsplash.com/photo-1553440569-bcc63803a83d?q=80&w=1125&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
-        alt="Car Dashboard"
-        fill
-        className="object-cover shadow-2xl"
-      />
-    </div>
-
-    {/* Fourth Image */}
-    <div className="absolute top-[15px] sm:top-[25px] md:top-[35px] lg:top-[45px] left-[170px] sm:left-[210px] md:left-[290px] lg:left-[380px] w-[80px] sm:w-[100px] md:w-[140px] lg:w-[190px] h-[120px] sm:h-[150px] md:h-[210px] lg:h-[380px] z-20">
-      <Image
-        src="https://images.unsplash.com/photo-1525609004556-c46c7d6cf023?w=600&h=400&fit=crop"
-        alt="Luxury Car"
-        fill
-        className="object-cover shadow-2xl"
-      />
-    </div>
-
-  </div>
-
-</div>
-
+            <div className="relative h-[250px] sm:h-[300px] md:h-[350px] lg:h-[400px] w-full order-1 lg:order-2 max-w-[500px] mx-auto lg:mx--2">
+              <div className="absolute top-0 left-1/2 -translate-x-1/2 lg:left-0 lg:translate-x-0 w-[250px] sm:w-[300px] md:w-[400px] lg:w-auto h-full">
+                <div className="absolute top-0 left-0 w-[80px] sm:w-[100px] md:w-[140px] lg:w-[190px] h-[120px] sm:h-[150px] md:h-[210px] lg:h-[380px] z-10">
+                  <Image
+                    src="https://images.unsplash.com/photo-1544636331-e26879cd4d9b?w=600&h=400&fit=crop"
+                    alt="Muscle Car"
+                    fill
+                    className="object-cover shadow-xl"
+                  />
+                </div>
+                <div className="absolute top-[20px] sm:top-[30px] md:top-[40px] lg:top-[50px] left-[60px] sm:left-[80px] md:left-[110px] lg:left-[140px] w-[80px] sm:w-[100px] md:w-[140px] lg:w-[190px] h-[120px] sm:h-[150px] md:h-[210px] lg:h-[380px] z-20">
+                  <Image
+                    src="https://images.unsplash.com/photo-1606664515524-ed2f786a0bd6?w=400&h=300&fit=crop"
+                    alt="Yellow Sports Car"
+                    fill
+                    className="object-cover shadow-2xl"
+                  />
+                </div>
+                <div className="absolute top-0 left-[120px] sm:left-[150px] md:left-[210px] lg:left-[270px] w-[70px] sm:w-[90px] md:w-[120px] lg:w-[190px] h-[120px] sm:h-[150px] md:h-[210px] lg:h-[380px] z-30">
+                  <Image
+                    src="https://images.unsplash.com/photo-1553440569-bcc63803a83d?q=80&w=1125&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
+                    alt="Car Dashboard"
+                    fill
+                    className="object-cover shadow-2xl"
+                  />
+                </div>
+                <div className="absolute top-[15px] sm:top-[25px] md:top-[35px] lg:top-[45px] left-[170px] sm:left-[210px] md:left-[290px] lg:left-[380px] w-[80px] sm:w-[100px] md:w-[140px] lg:w-[190px] h-[120px] sm:h-[150px] md:h-[210px] lg:h-[380px] z-20">
+                  <Image
+                    src="https://images.unsplash.com/photo-1525609004556-c46c7d6cf023?w=600&h=400&fit=crop"
+                    alt="Luxury Car"
+                    fill
+                    className="object-cover shadow-2xl"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      {/* Search and Filter Section - Fully Responsive */}
       <section className="py-6 md:py-8 bg-gray-50">
         <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col gap-4">
-            {/* Search Bar */}
             <div className="flex flex-col md:flex-row gap-4 items-center justify-between">
-              <div className="flex-1 max-w-md w-full">
+              <div className="flex-1 max-w-md w-full relative">
+                <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                  <Search className="h-5 w-5 text-gray-400" />
+                </div>
                 <input
                   type="text"
-                  placeholder="Search cars, brands(kia , toyota, ford , jaguar , lexus )"
+                  placeholder="Search cars, brands (kia, toyota, ford, jaguar, lexus)"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="w-full px-4 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#FF5959] text-sm md:text-base"
+                  onKeyDown={handleKeyDown}
+                  className="w-full pl-10 pr-12 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-[#FF5959] text-sm md:text-base"
                 />
+                <button
+                  onClick={handleSearch}
+                  className="absolute inset-y-0 right-0 flex items-center pr-3"
+                  aria-label="Search"
+                >
+                  <Search className="h-5 w-5 text-gray-600 hover:text-[#FF5959] transition-colors" />
+                </button>
               </div>
               <div className="flex items-center gap-4">
                 <label className="flex items-center gap-2">
@@ -348,7 +342,6 @@ export default function BlogsPage() {
               </div>
             </div>
 
-            {/* Category Filters - Clean without images */}
             <div className="flex gap-2 flex-wrap">
               <span className="text-sm font-medium text-gray-700 py-2 w-full sm:w-auto">Categories:</span>
               <div className="flex gap-2 flex-wrap">
@@ -370,7 +363,6 @@ export default function BlogsPage() {
               </div>
             </div>
 
-            {/* Brand Filters - Clean without images */}
             <div className="flex gap-2 flex-wrap">
               <span className="text-sm font-medium text-gray-700 py-2 w-full sm:w-auto">Brands:</span>
               <div className="flex gap-2 flex-wrap">
@@ -395,8 +387,10 @@ export default function BlogsPage() {
         </div>
       </section>
 
-      {/* All Posts Section - Fully Responsive */}
-      <section className="py-8 md:py-16 bg-white">
+      <section 
+        ref={postsSectionRef}
+        className="py-8 md:py-16 bg-white"
+      >
         <div className="max-w-8xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 md:mb-8 gap-4">
             <h2 className="text-xl sm:text-2xl md:text-3xl font-bold">
@@ -430,7 +424,6 @@ export default function BlogsPage() {
                 })}
               </div>
 
-              {/* Load More Button */}
               {displayedPosts < filteredPosts.length && (
                 <div className="text-center mt-8 md:mt-12">
                   <Button onClick={loadMore} size="lg">
